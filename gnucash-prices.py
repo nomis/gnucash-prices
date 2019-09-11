@@ -31,7 +31,8 @@ now = datetime.now().date()
 days = [3, 1, 1, 1, 1, 1, 2][now.weekday()]
 
 
-def check_prices(session):
+def read_prices(session):
+	logging.debug("Reading prices")
 	ret = True
 
 	commodities = {}
@@ -44,7 +45,8 @@ def check_prices(session):
 			if cty.is_currency():
 				if cty.get_mnemonic() in ["XXX"]:
 					continue
-				currencies.add(cty)
+				if cty.get_quote_flag():
+					currencies.add(cty)
 			if cty.get_quote_flag():
 				commodities[(ns.get_name(), cty.get_mnemonic())] = cty
 
@@ -66,6 +68,13 @@ def check_prices(session):
 					if key not in prices or ts > prices[key]:
 						prices[key] = ts
 
+	logging.debug("Read prices")
+	return (commodities, currencies, prices)
+
+
+def check_prices(commodities, prices):
+	logging.debug("Checking prices")
+
 	for (key, name) in commodities.items():
 		if key not in prices:
 			logging.error("Missing any price data for {0}/{1}".format(*key))
@@ -74,12 +83,14 @@ def check_prices(session):
 			logging.warning("Price data for {0}/{1} not updated for {2} (since {3})".format(*(key + (now - prices[key], prices[key]))))
 			ret = 1
 
+	logging.debug("Checked prices")
 	return True
 
 
 if __name__ == "__main__":
-	parser = argparse.ArgumentParser(description="Check GnuCash price database")
+	parser = argparse.ArgumentParser(description="GnuCash price database management")
 	parser.add_argument("-f", "--file", dest="file", required=True, help="GnuCash file")
+	parser.add_argument("-c", "--check", dest="check", action="store_true", help="Check that prices have been updated")
 	args = parser.parse_args()
 
 	root = logging.getLogger()
@@ -110,7 +121,9 @@ if __name__ == "__main__":
 			continue
 
 		try:
-			ok = check_prices(session)
+			(commodities, currencies, prices) = read_prices(session)
+			if args.check:
+				ok = check_prices(commodities, prices)
 			if session.book.session_not_saved():
 				logging.info("Saving changes")
 				session.save()
