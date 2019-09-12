@@ -17,6 +17,7 @@
 
 from __future__ import print_function
 from datetime import datetime, timedelta
+from gnucash._gnucash_core_c import gnc_quote_source_get_internal_name
 import argparse
 import gnucash
 import logging
@@ -37,22 +38,21 @@ def read_prices(session):
 
 	commodities = {}
 	prices = {}
+	currencies = {}
 	ctb = session.book.get_table()
 	pdb = session.book.get_price_db()
-	currencies = set()
 	for ns in ctb.get_namespaces_list():
 		for cty in ns.get_commodity_list():
 			if cty.is_currency():
 				if cty.get_mnemonic() in ["XXX"]:
 					continue
-				if cty.get_quote_flag():
-					currencies.add(cty)
+				currencies[cty.get_mnemonic()] = cty
 			if cty.get_quote_flag():
 				commodities[(ns.get_name(), cty.get_mnemonic())] = cty
 
 	for (key, cty) in commodities.items():
-		for currency in currencies:
-			if cty == currency:
+		for currency in currencies.values():
+			if cty == currency or not currency.get_quote_flag():
 				continue
 			for price in pdb.get_prices(cty, currency)[0:1]:
 				ts = price.get_time()
@@ -60,8 +60,8 @@ def read_prices(session):
 					prices[key] = ts
 
 		if cty.is_currency():
-			for currency in currencies:
-				if cty == currency:
+			for currency in currencies.values():
+				if cty == currency or not currency.get_quote_flag():
 					continue
 				for price in pdb.get_prices(currency, cty)[0:1]:
 					ts = price.get_time()
@@ -75,22 +75,63 @@ def read_prices(session):
 def check_prices(commodities, prices):
 	logging.debug("Checking prices")
 
-	for (key, name) in commodities.items():
+	for (key, value) in commodities.items():
 		if key not in prices:
-			logging.error("Missing any price data for {0}/{1}".format(*key))
+			logging.error("Missing any price data for %s/%s", *key)
 			ret = 1
 		elif now - prices[key] > timedelta(days=days):
-			logging.warning("Price data for {0}/{1} not updated for {2} (since {3})".format(*(key + (now - prices[key], prices[key]))))
+			logging.warning("Price data for %s/%s not updated for %s (since %s)", key[0], key[1], now - prices[key], prices[key])
 			ret = 1
 
 	logging.debug("Checked prices")
+	return True
+
+def update_prices(session, base_currency, offset, all_commodities, currencies, prices):
+	logging.debug("Updating prices")
+
+	update_commodities = {}
+
+	if base_currency is None:
+		root = session.book.get_root_account()
+		base_currency = root.get_children_sorted()[0].GetCommodity().get_mnemonic()
+	base_currency = currencies[base_currency]
+	logging.debug("Base currency = %s", base_currency.get_mnemonic())
+
+	if offset is None:
+		offset = 0
+	now_adjusted = now - timedelta(days=offset)
+	logging.debug("Date offset = %d (%s)", offset, now_adjusted)
+
+	for (key, commodity) in all_commodities.items():
+		if commodity == base_currency:
+			continue
+		if key not in prices:
+			logging.debug("Need to update %s/%s (no prices)", *key)
+			update_commodities[key] = commodity
+		elif now_adjusted - prices[key] > timedelta(days=days - 1):
+			logging.debug("Need to update %s/%s not updated for %s (since %s)", key[0], key[1], now_adjusted - prices[key], prices[key])
+			update_commodities[key] = commodity
+		else:
+			logging.debug("Price data for %s/%s updated on %s", key[0], key[1], prices[key])
+
+	for (key, commodity) in update_commodities.items():
+		if commodity.is_currency():
+			lookup = ("currency", commodity.get_mnemonic(), base_currency.get_mnemonic())
+		else:
+			lookup = (gnc_quote_source_get_internal_name(commodity.get_quote_source()), key[1])
+		logging.info("Update %s/%s with lookup %s", key[0], key[1], lookup)
+
+	logging.debug("Updated prices")
 	return True
 
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description="GnuCash price database management")
 	parser.add_argument("-f", "--file", dest="file", required=True, help="GnuCash file")
+	parser.add_argument("-b", "--base", dest="currency", help="Base currency")
 	parser.add_argument("-c", "--check", dest="check", action="store_true", help="Check that prices have been updated")
+	parser.add_argument("-u", "--update", dest="update", action="store_true", help="Update prices that need to be updated")
+	parser.add_argument("-o", "--offset", dest="offset", type=int, help="Date offset")
 	args = parser.parse_args()
 
 	root = logging.getLogger()
@@ -122,8 +163,10 @@ if __name__ == "__main__":
 
 		try:
 			(commodities, currencies, prices) = read_prices(session)
+			if args.update:
+				ok = update_prices(session, args.currency, args.offset, commodities, currencies, prices) and ok
 			if args.check:
-				ok = check_prices(commodities, prices)
+				ok = check_prices(commodities, prices) and ok
 			if session.book.session_not_saved():
 				logging.info("Saving changes")
 				session.save()
