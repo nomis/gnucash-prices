@@ -31,7 +31,7 @@ def parse(data):
 			return (data[0], data[2])
 		return data
 
-	stack = []
+	stack = [{"text": None, "symbol": True, "values": []}]
 	in_str = False
 
 	for c in data:
@@ -45,14 +45,15 @@ def parse(data):
 		elif c == "(":
 			stack.append({"text": None, "symbol": True, "values": []})
 		elif c == ")":
-			assert len(stack) > 0
+			assert len(stack) > 1
 
 			_append_text(stack[-1])
 
-			if len(stack) == 1:
-				return _pair_values(stack[0]["values"])
+			if len(stack) == 2:
+				return _pair_values(stack[1]["values"])
 			else:
 				stack[-2]["values"].append(_pair_values(stack[-1]["values"]))
+
 			stack.pop()
 		elif c == ' ' or c == '\r' or c == '\n':
 			_append_text(stack[-1])
@@ -62,7 +63,12 @@ def parse(data):
 			else:
 				stack[-1]["text"] += c
 
-	return None
+	if stack[0]["values"]:
+		_append_text(stack[-1])
+
+		return _pair_values(stack[0]["values"])
+	else:
+		return None
 
 def format(data):
 	if data is None:
