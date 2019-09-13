@@ -17,14 +17,20 @@
 
 from __future__ import print_function
 from datetime import datetime, timedelta
+from fractions import Fraction
 from gnucash._gnucash_core_c import gnc_quote_source_get_internal_name
 import argparse
 import gnucash
 import logging
 import logging.handlers
+import pytz
 import os
+import scheme
+import subprocess
 import sys
 import time
+import traceback
+import tzlocal
 
 
 now = datetime.now().date()
@@ -86,6 +92,7 @@ def check_prices(commodities, prices):
 	logging.debug("Checked prices")
 	return True
 
+
 def update_prices(session, base_currency, offset, all_commodities, currencies, prices):
 	logging.debug("Updating prices")
 
@@ -114,15 +121,88 @@ def update_prices(session, base_currency, offset, all_commodities, currencies, p
 		else:
 			logging.debug("Price data for %s/%s updated on %s", key[0], key[1], prices[key])
 
+	pdb = session.book.get_price_db()
 	for (key, commodity) in update_commodities.items():
 		if commodity.is_currency():
-			lookup = ("currency", commodity.get_mnemonic(), base_currency.get_mnemonic())
+			lookup = ["currency", commodity.get_mnemonic().decode("utf-8"), base_currency.get_mnemonic().decode("utf-8")]
 		else:
-			lookup = (gnc_quote_source_get_internal_name(commodity.get_quote_source()), key[1])
-		logging.info("Update %s/%s with lookup %s", key[0], key[1], lookup)
+			lookup = [gnc_quote_source_get_internal_name(commodity.get_quote_source()), key[1].decode("utf-8")]
+		logging.info("Updating %s/%s", key[0], key[1])
+		try:
+			result = quote_lookup(lookup)
+		except KeyboardInterrupt:
+			raise
+		except Exception as e:
+			logging.critical("Unable to get data for %s/%s")
+			for line in traceback.format_exc().strip().split("\n"):
+				logging.critical("%s", line)
+			continue
+
+		if result is None:
+			logging.warn("No data for %s/%s", key[0], key[1])
+		else:
+			tz = commodity.get_quote_tz()
+			if tz:
+				result["ts"] = pytz.timezone(commodity.get_quote_tz()).localize(result["ts"])
+			else:
+				result["ts"] = tzlocal.get_localzone().localize(result["ts"])
+
+		if result["ts"].date() < now_adjusted:
+			logging.warn("Ignoring old data for %s/%s", key[0], key[1])
+			result = None
+
+		if result is not None:
+			price = gnucash.GncPrice(instance=gnucash.gnucash_core_c.gnc_price_create(session.book.instance))
+			price.set_commodity(commodity)
+			price.set_currency(currencies[result["currency"]])
+			price.set_source_string("Finance::Quote")
+			price.set_typestr(result["type"])
+			price.set_time(result["ts"])
+
+			value = Fraction.from_float(result["price"]).limit_denominator(1000000000)
+			price.set_value(gnucash.GncNumeric(value.numerator, value.denominator))
+
+			pdb.add_price(price)
+			logging.info("Updated %s/%s", key[0], key[1])
 
 	logging.debug("Updated prices")
 	return True
+
+
+def quote_lookup(lookup):
+	request = scheme.format(lookup)
+	logging.debug("Lookup request: " + request)
+
+	time.sleep(1)
+	fq = subprocess.Popen(["gnc-fq-helper"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+	(response, stderr) = fq.communicate(request + "\n")
+
+	logging.debug("Lookup response: %s", response.replace("\n", " "))
+	if stderr:
+		logging.error("Lookup error: %s", stderr)
+	if fq.returncode:
+		logging.error("Lookup return code: %d", fq.returncode)
+	response = scheme.parse(response)
+
+	if response is None or response[0] is None or response[0][0] != lookup[1]:
+		return None
+
+	data = {}
+	for value in response[0][1:]:
+		if len(value) != 2:
+			continue
+
+		if value[0] == "gnc:time-no-zone".decode("utf-8"):
+			data["ts"] = value[1]
+		elif value[0] in [x.decode("utf-8") for x in ["last", "nav", "price"]]:
+			data["type"] = value[0].encode("utf-8")
+			data["price"] = value[1]
+		elif value[0] == "currency".decode("utf-8"):
+			data["currency"] = value[1].encode("utf-8")
+
+	if "ts" in data and "type" in data and "price" in data and "currency" in data:
+		return data
+	return None
 
 
 if __name__ == "__main__":
