@@ -223,7 +223,7 @@ if __name__ == "__main__":
 	root.addHandler(handler)
 
 	handler = logging.handlers.SysLogHandler("/dev/log")
-	handler.setLevel(level=logging.INFO)
+	handler.setLevel(level=logging.DEBUG)
 	handler.setFormatter(logging.Formatter('gnucash-check-prices: %(levelname)s %(message)s'))
 	root.addHandler(handler)
 
