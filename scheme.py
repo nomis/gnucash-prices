@@ -49,7 +49,7 @@ def parse(data):
 
 			_append_text(stack[-1])
 
-			if len(stack) == 2:
+			if len(stack) == 2 and not stack[0]["values"]:
 				return _pair_values(stack[1]["values"])
 			else:
 				stack[-2]["values"].append(_pair_values(stack[-1]["values"]))
