@@ -170,10 +170,11 @@ def update_prices(session, base_currency, offset, all_commodities, currencies, p
 
 
 def quote_lookup(lookup):
+	time.sleep(1)
+
 	request = scheme.format(lookup)
 	logging.debug("Lookup request: " + request)
 
-	time.sleep(1)
 	fq = subprocess.Popen(["gnc-fq-helper"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
 	(response, stderr) = fq.communicate(request + "\n")
 
