@@ -40,7 +40,6 @@ days = [3, 1, 1, 1, 1, 1, 2][now.weekday()]
 
 def read_prices(session):
 	logging.debug("Reading prices")
-	ret = True
 
 	commodities = {}
 	prices = {}
@@ -81,21 +80,23 @@ def read_prices(session):
 def check_prices(commodities, prices):
 	logging.debug("Checking prices")
 
+	ret = True
 	for (key, value) in commodities.items():
 		if key not in prices:
 			logging.error("Missing any price data for %s/%s", *key)
-			ret = 1
+			ret = False
 		elif now - prices[key] > timedelta(days=days):
 			logging.warning("Price data for %s/%s not updated for %s (since %s)", key[0], key[1], now - prices[key], prices[key])
-			ret = 1
+			ret = False
 
 	logging.debug("Checked prices")
-	return True
+	return ret
 
 
 def update_prices(session, base_currency, offset, all_commodities, currencies, prices):
 	logging.debug("Updating prices")
 
+	ret = True
 	update_commodities = {}
 
 	if base_currency is None:
@@ -136,6 +137,7 @@ def update_prices(session, base_currency, offset, all_commodities, currencies, p
 			logging.critical("Unable to get data for %s/%s")
 			for line in traceback.format_exc().strip().split("\n"):
 				logging.critical("%s", line)
+			ret = False
 			continue
 
 		if result is None:
@@ -166,7 +168,7 @@ def update_prices(session, base_currency, offset, all_commodities, currencies, p
 			logging.info("Updated %s/%s", key[0], key[1])
 
 	logging.debug("Updated prices")
-	return True
+	return ret
 
 
 def quote_lookup(lookup):
