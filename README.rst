@@ -1,7 +1,7 @@
 Description
 ===========
 
-GnuCash price database management (alternative to ``--add-price-quotes``)
+GnuCash price database management (alternative to ``--add-price-quotes``).
 
 Usage
 =====
@@ -12,8 +12,8 @@ Run the "check" process in the morning to check the previous day's prices exist:
 
 Run the "update" process in the evening to get today's prices::
 
-	?	18	*	*	*	cronty .../gnucash-prices.py -c -f ...
-	?	21	*	*	*	cronty .../gnucash-prices.py -c -f ...
+	?	18	*	*	*	cronty .../gnucash-prices.py -u -f ...
+	?	21	*	*	*	cronty .../gnucash-prices.py -u -f ...
 
 Run the "update" process overnight to get yesterday's prices::
 
