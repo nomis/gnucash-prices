@@ -34,8 +34,9 @@ import tzlocal
 
 
 now = datetime.now().date()
-#       M  T  W  T  F  S  S
-days = [3, 1, 1, 1, 1, 1, 2][now.weekday()]
+#              M  T  W  T  F  S  S
+check_days =  [3, 1, 1, 1, 1, 1, 2][now.weekday()]
+update_days = [0, 0, 0, 0, 0, 1, 2][now.weekday()]
 
 
 def read_prices(session):
@@ -85,7 +86,7 @@ def check_prices(commodities, prices):
 		if key not in prices:
 			logging.error("Missing any price data for %s/%s", *key)
 			ret = False
-		elif now - prices[key] > timedelta(days=days):
+		elif now - prices[key] > timedelta(days=check_days):
 			logging.warning("Price data for %s/%s not updated for %s (since %s)", key[0], key[1], now - prices[key], prices[key])
 			ret = False
 
@@ -107,7 +108,7 @@ def update_prices(session, base_currency, offset, all_commodities, currencies, p
 
 	if offset is None:
 		offset = 0
-	now_adjusted = now - timedelta(days=offset)
+	now_adjusted = now - timedelta(days=offset) - timedelta(days=update_days)
 	logging.debug("Date offset = %d (%s)", offset, now_adjusted)
 
 	for (key, commodity) in all_commodities.items():
@@ -116,7 +117,7 @@ def update_prices(session, base_currency, offset, all_commodities, currencies, p
 		if key not in prices:
 			logging.debug("Need to update %s/%s (no prices)", *key)
 			update_commodities[key] = commodity
-		elif now_adjusted - prices[key] > timedelta(days=days - 1):
+		elif now_adjusted - prices[key] > timedelta(days=0):
 			logging.debug("Need to update %s/%s not updated for %s (since %s)", key[0], key[1], now_adjusted - prices[key], prices[key])
 			update_commodities[key] = commodity
 		else:
