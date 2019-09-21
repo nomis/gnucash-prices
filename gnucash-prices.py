@@ -188,7 +188,7 @@ def quote_lookup(lookup):
 		logging.error("Lookup return code: %d", fq.returncode)
 	response = scheme.parse(response)
 
-	if response is None or response[0] is None or response[0][0] != lookup[1]:
+	if not response or not response[0] or response[0][0] != lookup[1]:
 		return None
 
 	data = {}

@@ -4,8 +4,10 @@ def parse(data):
 	def _append_text(data):
 		if data["text"] is not None:
 			if data["symbol"]:
-				if data["text"] == "#f":
-					value = None
+				if data["text"] == "#t":
+					value = True
+				elif data["text"] == "#f":
+					value = False
 				else:
 					value = data["text"]
 
@@ -71,7 +73,10 @@ def parse(data):
 		return None
 
 def format(data):
-	if data is None:
+	assert(data is not None)
+	if data is True:
+		return "#t"
+	elif data is False:
 		return "#f"
 	elif type(data) == list:
 		return "(" + " ".join([format(x) for x in data]) + ")"
