@@ -209,6 +209,23 @@ def quote_lookup(lookup):
 	return None
 
 
+def remove_user_currency_prices(session, currencies):
+	pdb = session.book.get_price_db()
+
+	for currency1 in currencies.values():
+		for currency2 in currencies.values():
+			if currency1 == currency2:
+				continue
+			for price in pdb.get_prices(currency1, currency2):
+				if price.get_source_string().decode("utf-8").startswith("user:"):
+					logging.info("Remove price for CURRENCY %s/%s on %s (%s)",
+						currency1.get_mnemonic().decode("utf-8"),
+						currency2.get_mnemonic().decode("utf-8"),
+						price.get_time(),
+						price.get_source_string().decode("utf-8"))
+					pdb.remove_price(price)
+
+
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description="GnuCash price database management")
 	parser.add_argument("-f", "--file", dest="file", required=True, help="GnuCash file")
@@ -216,6 +233,7 @@ if __name__ == "__main__":
 	parser.add_argument("-c", "--check", dest="check", action="store_true", help="Check that prices have been updated")
 	parser.add_argument("-u", "--update", dest="update", action="store_true", help="Update prices that need to be updated")
 	parser.add_argument("-o", "--offset", dest="offset", type=int, help="Date offset")
+	parser.add_argument("--remove-user-currency-prices", dest="remove_user_currency", action="store_true", help="Remove user:* currency prices")
 	args = parser.parse_args()
 
 	root = logging.getLogger()
@@ -247,6 +265,8 @@ if __name__ == "__main__":
 
 		try:
 			(commodities, currencies, prices) = read_prices(session)
+			if args.remove_user_currency:
+				remove_user_currency_prices(session, currencies)
 			if args.update:
 				ok = update_prices(session, args.currency, args.offset, commodities, currencies, prices) and ok
 			if args.check:
