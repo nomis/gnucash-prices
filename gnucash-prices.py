@@ -150,7 +150,7 @@ def update_prices(session, base_currency, offset, all_commodities, currencies, p
 			else:
 				result["ts"] = tzlocal.get_localzone().localize(result["ts"])
 
-			if result["ts"].date() <= prices[key]:
+			if key in prices and result["ts"].date() <= prices[key]:
 				logging.warn("Ignoring old data for %s/%s", key[0], key[1])
 				result = None
 
