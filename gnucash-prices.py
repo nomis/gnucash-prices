@@ -39,6 +39,10 @@ check_days =  [3, 1, 1, 1, 1, 1, 2][now.weekday()]
 update_days = [0, 0, 0, 0, 0, 1, 2][now.weekday()]
 
 
+def _cty_desc(cty):
+	return "{0}/{1} \"{2}\"".format(cty.get_namespace(), cty.get_mnemonic(), cty.get_fullname())
+
+
 def read_prices(session):
 	logging.debug("Reading prices")
 
@@ -84,10 +88,10 @@ def check_prices(commodities, prices):
 	ret = True
 	for (key, value) in commodities.items():
 		if key not in prices:
-			logging.error("Missing any price data for %s/%s", *key)
+			logging.error("Missing any price data for %s", _cty_desc(value))
 			ret = False
 		elif now - prices[key] > timedelta(days=check_days):
-			logging.warning("Price data for %s/%s not updated for %s (since %s)", key[0], key[1], now - prices[key], prices[key])
+			logging.warning("Price data for %s not updated for %s (since %s)", _cty_desc(value), now_adjusted - prices[key], prices[key])
 			ret = False
 
 	logging.debug("Checked prices")
@@ -115,13 +119,13 @@ def update_prices(session, base_currency, offset, all_commodities, currencies, p
 		if commodity == base_currency:
 			continue
 		if key not in prices:
-			logging.debug("Need to update %s/%s (no prices)", *key)
+			logging.debug("Need to update %s (no prices)", _cty_desc(commodity))
 			update_commodities[key] = commodity
 		elif now_adjusted - prices[key] > timedelta(days=0):
-			logging.debug("Need to update %s/%s not updated for %s (since %s)", key[0], key[1], now_adjusted - prices[key], prices[key])
+			logging.debug("Need to update %s not updated for %s (since %s)", _cty_desc(commodity), now_adjusted - prices[key], prices[key])
 			update_commodities[key] = commodity
 		else:
-			logging.debug("Price data for %s/%s updated on %s", key[0], key[1], prices[key])
+			logging.debug("Price data for %s updated on %s", _cty_desc(commodity), prices[key])
 
 	pdb = session.book.get_price_db()
 	for (key, commodity) in update_commodities.items():
@@ -129,20 +133,20 @@ def update_prices(session, base_currency, offset, all_commodities, currencies, p
 			lookup = ["currency", commodity.get_mnemonic().decode("utf-8"), base_currency.get_mnemonic().decode("utf-8")]
 		else:
 			lookup = [gnc_quote_source_get_internal_name(commodity.get_quote_source()), key[1].decode("utf-8")]
-		logging.info("Updating %s/%s", key[0], key[1])
+		logging.info("Updating %s", _cty_desc(commodity))
 		try:
 			result = quote_lookup(lookup)
 		except KeyboardInterrupt:
 			raise
 		except Exception as e:
-			logging.critical("Unable to get data for %s/%s")
+			logging.critical("Unable to get data for %s", _cty_desc(commodity))
 			for line in traceback.format_exc().strip().split("\n"):
 				logging.critical("%s", line)
 			ret = False
 			continue
 
 		if result is None:
-			logging.warn("No data for %s/%s", key[0], key[1])
+			logging.warn("No data for %s", _cty_desc(commodity))
 		else:
 			tz = commodity.get_quote_tz()
 			if tz:
@@ -151,7 +155,7 @@ def update_prices(session, base_currency, offset, all_commodities, currencies, p
 				result["ts"] = tzlocal.get_localzone().localize(result["ts"])
 
 			if key in prices and result["ts"].date() <= prices[key]:
-				logging.warn("Ignoring old data for %s/%s", key[0], key[1])
+				logging.warn("Ignoring old data for %s", _cty_desc(commodity))
 				result = None
 
 		if result is not None:
@@ -166,7 +170,7 @@ def update_prices(session, base_currency, offset, all_commodities, currencies, p
 			price.set_value(gnucash.GncNumeric(value.numerator, value.denominator))
 
 			pdb.add_price(price)
-			logging.info("Updated %s/%s", key[0], key[1])
+			logging.info("Updated %s", _cty_desc(commodity))
 
 	logging.debug("Updated prices")
 	return ret
