@@ -82,15 +82,21 @@ def read_prices(session):
 	return (commodities, currencies, prices)
 
 
-def check_prices(commodities, prices):
+def check_prices(offset, commodities, prices):
 	logging.debug("Checking prices")
+
+	if offset is None:
+		offset = 0
+
+	now_adjusted = now - timedelta(days=offset)
+	logging.debug("Date offset = %d (%s)", offset, now_adjusted)
 
 	ret = True
 	for (key, value) in commodities.items():
 		if key not in prices:
 			logging.error("Missing any price data for %s", _cty_desc(value))
 			ret = False
-		elif now - prices[key] > timedelta(days=check_days):
+		elif now_adjusted - prices[key] > timedelta(days=check_days):
 			logging.warning("Price data for %s not updated for %s (since %s)", _cty_desc(value), now_adjusted - prices[key], prices[key])
 			ret = False
 
@@ -274,7 +280,7 @@ if __name__ == "__main__":
 			if args.update:
 				ok = update_prices(session, args.currency, args.offset, commodities, currencies, prices) and ok
 			if args.check:
-				ok = check_prices(commodities, prices) and ok
+				ok = check_prices(args.offset, commodities, prices) and ok
 			if session.book.session_not_saved():
 				logging.info("Saving changes")
 				session.save()
