@@ -35,8 +35,7 @@ import tzlocal
 
 now = datetime.now().date()
 #              M  T  W  T  F  S  S
-check_days =  [3, 1, 1, 1, 1, 1, 2][now.weekday()]
-update_days = [0, 0, 0, 0, 0, 1, 2][now.weekday()]
+check_days =  [3, 1, 1, 1, 1, 1, 2]
 
 
 def _cty_desc(cty):
@@ -96,7 +95,7 @@ def check_prices(offset, commodities, prices):
 		if key not in prices:
 			logging.error("Missing any price data for %s", _cty_desc(value))
 			ret = False
-		elif now_adjusted - prices[key] > timedelta(days=check_days):
+		elif now_adjusted - prices[key] > timedelta(days=check_days[now_adjusted.weekday()]):
 			logging.warning("Price data for %s not updated for %s (since %s)", _cty_desc(value), now_adjusted - prices[key], prices[key])
 			ret = False
 
@@ -118,7 +117,9 @@ def update_prices(session, base_currency, offset, all_commodities, currencies, p
 
 	if offset is None:
 		offset = 0
-	now_adjusted = now - timedelta(days=offset) - timedelta(days=update_days)
+	now_adjusted = now - timedelta(days=offset)
+	while now_adjusted.isoweekday() in [6,7]:
+		now_adjusted -= timedelta(days=1)
 	logging.debug("Date offset = %d (%s)", offset, now_adjusted)
 
 	for (key, commodity) in all_commodities.items():
