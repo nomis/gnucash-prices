@@ -16,7 +16,7 @@ def parse(data):
 					except ValueError:
 						pass
 			else:
-				value = data["text"].decode("utf-8")
+				value = data["text"]
 
 				try:
 					value = datetime.strptime(data["text"], "%Y-%m-%d %H:%M:%S")
@@ -85,6 +85,8 @@ def format(data):
 	elif type(data) == int or type(data) == float:
 		return str(data)
 	elif type(data) == str:
-		return data
+		return '"' + data + '"'
+	elif type(data) == bytes:
+		return data.decode("utf-8")
 	else:
-		return '"' + str(data) + '"'
+		assert False, type(data)

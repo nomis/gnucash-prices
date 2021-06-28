@@ -1,6 +1,6 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # coding: utf-8
-# Copyright 2019  Simon Arlott
+# Copyright 2019-2021  Simon Arlott
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -15,7 +15,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from __future__ import print_function
 from datetime import datetime, timedelta
 from fractions import Fraction
 from gnucash._gnucash_core_c import gnc_quote_source_get_internal_name
@@ -64,7 +63,7 @@ def read_prices(session):
 			if cty == currency or not currency.get_quote_flag():
 				continue
 			for price in pdb.get_prices(cty, currency)[0:1]:
-				ts = price.get_time()
+				ts = price.get_time64().date()
 				if key not in prices or ts > prices[key]:
 					prices[key] = ts
 
@@ -73,7 +72,7 @@ def read_prices(session):
 				if cty == currency or not currency.get_quote_flag():
 					continue
 				for price in pdb.get_prices(currency, cty)[0:1]:
-					ts = price.get_time()
+					ts = price.get_time64().date()
 					if key not in prices or ts > prices[key]:
 						prices[key] = ts
 
@@ -137,9 +136,9 @@ def update_prices(session, base_currency, offset, all_commodities, currencies, p
 	pdb = session.book.get_price_db()
 	for (key, commodity) in update_commodities.items():
 		if commodity.is_currency():
-			lookup = ["currency", commodity.get_mnemonic().decode("utf-8"), base_currency.get_mnemonic().decode("utf-8")]
+			lookup = [b"currency", commodity.get_mnemonic(), base_currency.get_mnemonic()]
 		else:
-			lookup = [gnc_quote_source_get_internal_name(commodity.get_quote_source()), key[1].decode("utf-8")]
+			lookup = [gnc_quote_source_get_internal_name(commodity.get_quote_source()).encode("utf-8"), key[1]]
 		logging.info("Updating %s", _cty_desc(commodity))
 		try:
 			result = quote_lookup(lookup)
@@ -171,7 +170,7 @@ def update_prices(session, base_currency, offset, all_commodities, currencies, p
 			price.set_currency(currencies[result["currency"]])
 			price.set_source_string("Finance::Quote")
 			price.set_typestr(result["type"])
-			price.set_time(result["ts"])
+			price.set_time64(result["ts"].replace(hour=12, minute=0, second=0, microsecond=0))
 
 			value = Fraction.from_float(result["price"]).limit_denominator(1000000000)
 			price.set_value(gnucash.GncNumeric(value.numerator, value.denominator))
@@ -207,13 +206,13 @@ def quote_lookup(lookup):
 		if len(value) != 2:
 			continue
 
-		if value[0] == "gnc:time-no-zone".decode("utf-8"):
+		if value[0] == "gnc:time-no-zone":
 			data["ts"] = value[1]
-		elif value[0] in [x.decode("utf-8") for x in ["last", "nav", "price"]]:
-			data["type"] = value[0].encode("utf-8")
+		elif value[0] in [x for x in ["last", "nav", "price"]]:
+			data["type"] = value[0]
 			data["price"] = value[1]
-		elif value[0] == "currency".decode("utf-8"):
-			data["currency"] = value[1].encode("utf-8")
+		elif value[0] == "currency":
+			data["currency"] = value[1]
 
 	if "ts" in data and "type" in data and "price" in data and "currency" in data:
 		return data
@@ -228,12 +227,12 @@ def remove_user_currency_prices(session, currencies):
 			if currency1 == currency2:
 				continue
 			for price in pdb.get_prices(currency1, currency2):
-				if price.get_source_string().decode("utf-8").startswith("user:"):
+				if price.get_source_string().startswith("user:"):
 					logging.info("Remove price for CURRENCY %s/%s on %s (%s)",
-						currency1.get_mnemonic().decode("utf-8"),
-						currency2.get_mnemonic().decode("utf-8"),
+						currency1.get_mnemonic(),
+						currency2.get_mnemonic(),
 						price.get_time(),
-						price.get_source_string().decode("utf-8"))
+						price.get_source_string())
 					pdb.remove_price(price)
 
 
