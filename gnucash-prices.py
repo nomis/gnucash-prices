@@ -166,15 +166,15 @@ def update_prices(session, base_currency, offset, all_commodities, currencies, p
 				logging.warn("Ignoring old data for %s", _cty_desc(commodity))
 				result = None
 
-			result["ts"] = datetime(result["ts"].year, result["ts"].month, result["ts"].day, 12, tzinfo=pytz.utc).astimezone(local_tz)
-
 		if result is not None:
 			price = gnucash.GncPrice(instance=gnucash.gnucash_core_c.gnc_price_create(session.book.instance))
 			price.set_commodity(commodity)
 			price.set_currency(currencies[result["currency"]])
 			price.set_source_string("Finance::Quote")
 			price.set_typestr(result["type"])
-			price.set_time64(result["ts"])
+
+			ts = datetime(result["ts"].year, result["ts"].month, result["ts"].day, 12, tzinfo=pytz.utc).astimezone(local_tz)
+			price.set_time64(ts)
 
 			value = Fraction.from_float(result["price"]).limit_denominator(1000000000)
 			price.set_value(gnucash.GncNumeric(value.numerator, value.denominator))
