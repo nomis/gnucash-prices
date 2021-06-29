@@ -17,7 +17,7 @@
 
 from datetime import datetime, timedelta
 from fractions import Fraction
-from gnucash._gnucash_core_c import gnc_quote_source_get_internal_name
+from gnucash._gnucash_core_c import gnc_quote_source_get_internal_name, gnc_numeric_to_double
 import argparse
 import gnucash
 import logging
@@ -231,13 +231,34 @@ def remove_user_currency_prices(session, currencies):
 			if currency1 == currency2:
 				continue
 			for price in pdb.get_prices(currency1, currency2):
-				if price.get_source_string().startswith("user:"):
-					logging.info("Remove price for CURRENCY %s/%s on %s (%s)",
+				if price.get_source_string().startswith("user:") and price.get_source_string() != "user:price-editor":
+					logging.info("Remove price %s for CURRENCY %s/%s on %s (%s/%s)",
+						gnc_numeric_to_double(price.get_value()),
 						currency1.get_mnemonic(),
 						currency2.get_mnemonic(),
 						price.get_time64(),
-						price.get_source_string())
+						price.get_source_string(),
+						price.get_typestr())
 					pdb.remove_price(price)
+
+def remove_user_commodity_prices(session, currencies):
+	ctb = session.book.get_table()
+	pdb = session.book.get_price_db()
+
+	for ns in ctb.get_namespaces_list():
+		for cty in ns.get_commodity_list():
+			if cty.is_currency():
+				continue
+			for currency in currencies.values():
+				for price in pdb.get_prices(cty, currency):
+					if price.get_source_string().startswith("user:") and price.get_source_string() != "user:price-editor":
+						logging.info("Remove price %s for %s on %s (%s/%s)",
+							gnc_numeric_to_double(price.get_value()),
+							_cty_desc(cty),
+							price.get_time64(),
+							price.get_source_string(),
+							price.get_typestr())
+						pdb.remove_price(price)
 
 
 if __name__ == "__main__":
@@ -248,6 +269,7 @@ if __name__ == "__main__":
 	parser.add_argument("-u", "--update", dest="update", action="store_true", help="Update prices that need to be updated")
 	parser.add_argument("-o", "--offset", dest="offset", type=int, help="Date offset")
 	parser.add_argument("--remove-user-currency-prices", dest="remove_user_currency", action="store_true", help="Remove user:* currency prices")
+	parser.add_argument("--remove-user-commodity-prices", dest="remove_user_commodity", action="store_true", help="Remove user:* commodity prices")
 	args = parser.parse_args()
 
 	root = logging.getLogger()
@@ -281,6 +303,8 @@ if __name__ == "__main__":
 			(commodities, currencies, prices) = read_prices(session)
 			if args.remove_user_currency:
 				remove_user_currency_prices(session, currencies)
+			if args.remove_user_commodity:
+				remove_user_commodity_prices(session, currencies)
 			if args.update:
 				ok = update_prices(session, args.currency, args.offset, commodities, currencies, prices) and ok
 			if args.check:
