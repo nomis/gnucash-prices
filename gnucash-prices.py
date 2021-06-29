@@ -235,7 +235,7 @@ def remove_user_currency_prices(session, currencies):
 					logging.info("Remove price for CURRENCY %s/%s on %s (%s)",
 						currency1.get_mnemonic(),
 						currency2.get_mnemonic(),
-						price.get_time(),
+						price.get_time64(),
 						price.get_source_string())
 					pdb.remove_price(price)
 
