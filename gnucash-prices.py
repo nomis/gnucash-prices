@@ -36,6 +36,8 @@ now = datetime.now().date()
 #              M  T  W  T  F  S  S
 check_days =  [3, 1, 1, 1, 1, 1, 2]
 
+local_tz = tzlocal.get_localzone()
+
 
 def _cty_desc(cty):
 	return "{0}/{1} \"{2}\"".format(cty.get_namespace(), cty.get_mnemonic(), cty.get_fullname())
@@ -158,11 +160,13 @@ def update_prices(session, base_currency, offset, all_commodities, currencies, p
 			if tz:
 				result["ts"] = pytz.timezone(commodity.get_quote_tz()).localize(result["ts"])
 			else:
-				result["ts"] = tzlocal.get_localzone().localize(result["ts"])
+				result["ts"] = local_tz.localize(result["ts"])
 
 			if key in prices and result["ts"].date() <= prices[key]:
 				logging.warn("Ignoring old data for %s", _cty_desc(commodity))
 				result = None
+
+			result["ts"] = datetime(result["ts"].year, result["ts"].month, result["ts"].day, 12, tzinfo=pytz.utc).astimezone(local_tz)
 
 		if result is not None:
 			price = gnucash.GncPrice(instance=gnucash.gnucash_core_c.gnc_price_create(session.book.instance))
@@ -170,7 +174,7 @@ def update_prices(session, base_currency, offset, all_commodities, currencies, p
 			price.set_currency(currencies[result["currency"]])
 			price.set_source_string("Finance::Quote")
 			price.set_typestr(result["type"])
-			price.set_time64(result["ts"].replace(hour=12, minute=0, second=0, microsecond=0))
+			price.set_time64(result["ts"])
 
 			value = Fraction.from_float(result["price"]).limit_denominator(1000000000)
 			price.set_value(gnucash.GncNumeric(value.numerator, value.denominator))
