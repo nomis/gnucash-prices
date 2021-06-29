@@ -8,20 +8,18 @@ def parse(data):
 					value = True
 				elif data["text"] == "#f":
 					value = False
+				elif data["text"].startswith("#e"):
+					value = float(data["text"][2:])
 				else:
-					value = data["text"]
-
 					try:
 						value = float(data["text"])
 					except ValueError:
-						pass
+						value = data["text"]
 			else:
-				value = data["text"]
-
 				try:
 					value = datetime.strptime(data["text"], "%Y-%m-%d %H:%M:%S")
 				except ValueError:
-					pass
+					value = data["text"]
 
 			data["text"] = value
 			data["values"].append(data["text"])
@@ -82,8 +80,10 @@ def format(data):
 		return "(" + " ".join([format(x) for x in data]) + ")"
 	elif type(data) == tuple:
 		return "(" + " . ".join([format(x) for x in data]) + ")"
-	elif type(data) == int or type(data) == float:
+	elif type(data) == int:
 		return str(data)
+	elif type(data) == float:
+		return "#e" + str(data)
 	elif type(data) == str:
 		return '"' + data + '"'
 	elif type(data) == bytes:
