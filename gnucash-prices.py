@@ -20,6 +20,7 @@ from fractions import Fraction
 from gnucash._gnucash_core_c import gnc_quote_source_get_internal_name, gnc_numeric_to_double
 import argparse
 import gnucash
+import locale
 import logging
 import logging.handlers
 import pytz
@@ -31,6 +32,8 @@ import time
 import traceback
 import tzlocal
 
+
+locale.setlocale(locale.LC_ALL, "")
 
 now = datetime.now().date()
 #              M  T  W  T  F  S  S
