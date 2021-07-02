@@ -255,8 +255,9 @@ def remove_user_commodity_prices(session, currencies):
 			for currency in currencies.values():
 				for price in pdb.get_prices(cty, currency):
 					if price.get_source_string().startswith("user:") and price.get_source_string() != "user:price-editor":
-						logging.info("Remove price %s for %s on %s (%s/%s)",
+						logging.info("Remove price %s %s for %s on %s (%s/%s)",
 							gnc_numeric_to_double(price.get_value()),
+							currency.get_mnemonic(),
 							_cty_desc(cty),
 							price.get_time64(),
 							price.get_source_string(),
