@@ -25,12 +25,13 @@ import logging
 import logging.handlers
 import pytz
 import os
-import scheme
 import subprocess
 import sys
 import time
 import traceback
 import tzlocal
+
+from . import scheme
 
 
 locale.setlocale(locale.LC_ALL, "")
