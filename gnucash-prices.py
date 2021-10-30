@@ -31,7 +31,7 @@ import time
 import traceback
 import tzlocal
 
-from . import scheme
+import scheme
 
 
 locale.setlocale(locale.LC_ALL, "")
