@@ -148,8 +148,6 @@ def update_prices(session, base_currency, offset, all_commodities, currencies, p
 		logging.info("Updating %s", _cty_desc(commodity))
 		try:
 			result = quote_lookup(lookup)
-		except KeyboardInterrupt:
-			raise
 		except Exception as e:
 			logging.critical("Unable to get data for %s", _cty_desc(commodity))
 			for line in traceback.format_exc().strip().split("\n"):
