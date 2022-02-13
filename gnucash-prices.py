@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # coding: utf-8
-# Copyright 2019-2021  Simon Arlott
+# Copyright 2019-2022  Simon Arlott
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -42,6 +42,9 @@ check_days =  [3, 1, 1, 1, 1, 1, 2]
 
 local_tz = tzlocal.get_localzone()
 
+
+def _cty_id(cty):
+	return "{0}/{1}".format(cty.get_namespace(), cty.get_mnemonic())
 
 def _cty_desc(cty):
 	return "{0}/{1} \"{2}\"".format(cty.get_namespace(), cty.get_mnemonic(), cty.get_fullname())
@@ -86,7 +89,7 @@ def read_prices(session):
 	return (commodities, currencies, prices)
 
 
-def check_prices(offset, commodities, prices):
+def check_prices(offset, commodities, prices, late):
 	logging.debug("Checking prices")
 
 	if offset is None:
@@ -100,7 +103,7 @@ def check_prices(offset, commodities, prices):
 		if key not in prices:
 			logging.error("Missing any price data for %s", _cty_desc(value))
 			ret = False
-		elif now_adjusted - prices[key] > timedelta(days=check_days[now_adjusted.weekday()]):
+		elif now_adjusted - prices[key] > timedelta(days=check_days[now_adjusted.weekday()] + late.get(_cty_id(value), 0)):
 			logging.warning("Price data for %s not updated for %s (since %s)", _cty_desc(value), now_adjusted - prices[key], prices[key])
 			ret = False
 
@@ -271,6 +274,7 @@ if __name__ == "__main__":
 	parser.add_argument("-c", "--check", dest="check", action="store_true", help="Check that prices have been updated")
 	parser.add_argument("-u", "--update", dest="update", action="store_true", help="Update prices that need to be updated")
 	parser.add_argument("-o", "--offset", dest="offset", type=int, help="Date offset")
+	parser.add_argument("-l", "--late", dest="late", nargs=2, default=[], action="append", type=str, metavar=("COMMODITY", "DAYS"), help="Date offset per commodity")
 	parser.add_argument("--remove-user-currency-prices", dest="remove_user_currency", action="store_true", help="Remove user:* currency prices")
 	parser.add_argument("--remove-user-commodity-prices", dest="remove_user_commodity", action="store_true", help="Remove user:* commodity prices")
 	args = parser.parse_args()
@@ -311,7 +315,7 @@ if __name__ == "__main__":
 			if args.update:
 				ok = update_prices(session, args.currency, args.offset, commodities, currencies, prices) and ok
 			if args.check:
-				ok = check_prices(args.offset, commodities, prices) and ok
+				ok = check_prices(args.offset, commodities, prices, {commodity: int(days) for commodity, days in args.late}) and ok
 			if session.book.session_not_saved():
 				logging.info("Saving changes")
 				session.save()
