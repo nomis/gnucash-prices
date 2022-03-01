@@ -300,7 +300,10 @@ if __name__ == "__main__":
 	start = datetime.today()
 	while datetime.today() - start < timedelta(hours=1):
 		try:
+			before = datetime.today()
 			session = gnucash.Session(args.file, is_new=False)
+			after = datetime.today()
+			logging.debug(f"File load time: {after - before}")
 		except gnucash.gnucash_core.GnuCashBackendException as e:
 			if gnucash.ERR_BACKEND_LOCKED not in e.errors:
 				raise
