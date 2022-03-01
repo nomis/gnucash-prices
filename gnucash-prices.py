@@ -100,10 +100,12 @@ def check_prices(offset, commodities, prices, late):
 
 	ret = True
 	for (key, value) in commodities.items():
+		now_adjusted2 = now - timedelta(days=offset + late.get(_cty_id(value), 0))
+
 		if key not in prices:
 			logging.error("Missing any price data for %s", _cty_desc(value))
 			ret = False
-		elif now_adjusted - prices[key] > timedelta(days=check_days[now_adjusted.weekday()] + late.get(_cty_id(value), 0)):
+		elif now_adjusted2 - prices[key] > timedelta(days=check_days[now_adjusted2.weekday()]):
 			logging.warning("Price data for %s not updated for %s (since %s)", _cty_desc(value), now_adjusted - prices[key], prices[key])
 			ret = False
 
