@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # coding: utf-8
-# Copyright 2019-2022  Simon Arlott
+# Copyright 2019-2023  Simon Arlott
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -300,8 +300,11 @@ if __name__ == "__main__":
 	start = datetime.today()
 	while datetime.today() - start < timedelta(hours=1):
 		try:
+			mode = gnucash.SessionOpenMode.SESSION_READ_ONLY
+			if args.update or args.remove_user_currency or args.remove_user_commodity:
+				mode = gnucash.SessionOpenMode.SESSION_NORMAL_OPEN
 			before = datetime.today()
-			session = gnucash.Session(args.file, is_new=False)
+			session = gnucash.Session(args.file, is_new=False, mode=mode)
 			after = datetime.today()
 			logging.debug(f"File load time: {after - before}")
 		except gnucash.gnucash_core.GnuCashBackendException as e:
@@ -323,7 +326,10 @@ if __name__ == "__main__":
 				ok = check_prices(args.offset, commodities, prices, {commodity: int(days) for commodity, days in args.late}) and ok
 			if session.book.session_not_saved():
 				logging.info("Saving changes")
+				before = datetime.today()
 				session.save()
+				after = datetime.today()
+				logging.debug(f"File save time: {after - before}")
 		finally:
 			session.end()
 			session.destroy()
