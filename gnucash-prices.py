@@ -304,7 +304,7 @@ if __name__ == "__main__":
 			if args.update or args.remove_user_currency or args.remove_user_commodity:
 				mode = gnucash.SessionOpenMode.SESSION_NORMAL_OPEN
 			before = datetime.today()
-			session = gnucash.Session(args.file, is_new=False, mode=mode)
+			session = gnucash.Session(args.file, mode=mode)
 			after = datetime.today()
 			logging.debug(f"File load time: {after - before}")
 		except gnucash.gnucash_core.GnuCashBackendException as e:
