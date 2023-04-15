@@ -161,7 +161,7 @@ def update_prices(session, base_currency, offset, all_commodities, currencies, p
 			continue
 
 		if result is None:
-			logging.warn("No data for %s", _cty_desc(commodity))
+			logging.warning("No data for %s", _cty_desc(commodity))
 		else:
 			tz = commodity.get_quote_tz()
 			if tz:
@@ -170,7 +170,7 @@ def update_prices(session, base_currency, offset, all_commodities, currencies, p
 				result["ts"] = local_tz.localize(result["ts"])
 
 			if key in prices and result["ts"].date() <= prices[key]:
-				logging.warn("Ignoring old data for %s", _cty_desc(commodity))
+				logging.warning("Ignoring old data for %s", _cty_desc(commodity))
 				result = None
 
 		if result is not None:
