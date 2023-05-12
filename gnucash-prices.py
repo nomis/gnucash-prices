@@ -20,11 +20,13 @@ from fractions import Fraction
 from gnucash._gnucash_core_c import gnc_quote_source_get_internal_name, gnc_numeric_to_double
 import argparse
 import gnucash
+import json
 import locale
 import logging
 import logging.handlers
 import pytz
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -146,13 +148,9 @@ def update_prices(session, base_currency, offset, all_commodities, currencies, p
 
 	pdb = session.book.get_price_db()
 	for (key, commodity) in update_commodities.items():
-		if commodity.is_currency():
-			lookup = [b"currency", commodity.get_mnemonic(), base_currency.get_mnemonic()]
-		else:
-			lookup = [gnc_quote_source_get_internal_name(commodity.get_quote_source()).encode("utf-8"), key[1]]
 		logging.info("Updating %s", _cty_desc(commodity))
 		try:
-			result = quote_lookup(lookup)
+			result = quote_lookup(base_currency, commodity)
 		except Exception as e:
 			logging.critical("Unable to get data for %s", _cty_desc(commodity))
 			for line in traceback.format_exc().strip().split("\n"):
@@ -193,8 +191,22 @@ def update_prices(session, base_currency, offset, all_commodities, currencies, p
 	return ret
 
 
-def quote_lookup(lookup):
+def quote_lookup(base_currency, commodity):
 	time.sleep(1)
+
+	if shutil.which("finance-quote-wrapper"):
+		return quote_lookup_gnucash5(base_currency, commodity)
+	elif shutil.which("gnc-fq-helper"):
+		return quote_lookup_gnucash4(base_currency, commodity)
+	else:
+		logging.error("GnuCash Finance::Quote helper not found")
+		return None
+
+def quote_lookup_gnucash4(base_currency, commodity):
+	if commodity.is_currency():
+		lookup = [b"currency", commodity.get_mnemonic(), base_currency.get_mnemonic()]
+	else:
+		lookup = [gnc_quote_source_get_internal_name(commodity.get_quote_source()).encode("utf-8"), commodity.get_mnemonic()]
 
 	request = scheme.format(lookup)
 	logging.debug("Lookup request: " + request)
@@ -224,6 +236,60 @@ def quote_lookup(lookup):
 			data["price"] = value[1]
 		elif value[0] == "currency":
 			data["currency"] = value[1]
+
+	if "ts" in data and "type" in data and "price" in data and "currency" in data:
+		return data
+	return None
+
+
+def quote_lookup_gnucash5(base_currency, commodity):
+	time.sleep(1)
+
+	lookup = { "defaultcurrency": base_currency.get_mnemonic() }
+
+	if commodity.is_currency():
+		lookup["currency"] = { commodity.get_mnemonic(): "" }
+	else:
+		lookup[gnc_quote_source_get_internal_name(commodity.get_quote_source())] = { commodity.get_mnemonic(): "" }
+
+	request = json.dumps(lookup)
+	logging.debug("Lookup request: " + request)
+
+	fq = subprocess.Popen(["finance-quote-wrapper", "-f"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+	(response, stderr) = fq.communicate(request + "\n")
+
+	logging.debug("Lookup response: %s", response.replace("\n", " "))
+	if stderr:
+		logging.error("Lookup error: %s", stderr)
+	if fq.returncode:
+		logging.error("Lookup return code: %d", fq.returncode)
+	response = json.loads(response)
+
+	if commodity.get_mnemonic() not in response:
+		return None
+
+	response = response[commodity.get_mnemonic()]
+	if int(response.get("success", 0)) != 1:
+		return None
+
+	data = {}
+	if "isodate" in response:
+		if "time" not in response:
+			response["time"] = "12:00:00"
+		data["ts"] = datetime.fromisoformat(response["isodate"] + "T" + response["time"])
+	else:
+		data["ts"] = datetime.now()
+
+	for x in ["last", "nav", "price"]:
+		if x in response:
+			data["type"] = x
+			data["price"] = float(response[x])
+
+	if commodity.is_currency() and int(response["inverted"]) == 1:
+		data["price"] = 1 / float(data["price"])
+
+	if "currency" in response:
+		data["currency"] = response["currency"]
 
 	if "ts" in data and "type" in data and "price" in data and "currency" in data:
 		return data
