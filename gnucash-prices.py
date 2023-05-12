@@ -33,8 +33,6 @@ import time
 import traceback
 import tzlocal
 
-import scheme
-
 
 locale.setlocale(locale.LC_ALL, "")
 
@@ -47,6 +45,7 @@ local_tz = tzlocal.get_localzone()
 
 def _cty_id(cty):
 	return "{0}/{1}".format(cty.get_namespace(), cty.get_mnemonic())
+
 
 def _cty_desc(cty):
 	return "{0}/{1} \"{2}\"".format(cty.get_namespace(), cty.get_mnemonic(), cty.get_fullname())
@@ -202,13 +201,14 @@ def quote_lookup(base_currency, commodity):
 		logging.error("GnuCash Finance::Quote helper not found")
 		return None
 
+
 def quote_lookup_gnucash4(base_currency, commodity):
 	if commodity.is_currency():
 		lookup = [b"currency", commodity.get_mnemonic(), base_currency.get_mnemonic()]
 	else:
 		lookup = [gnc_quote_source_get_internal_name(commodity.get_quote_source()).encode("utf-8"), commodity.get_mnemonic()]
 
-	request = scheme.format(lookup)
+	request = scheme_format(lookup)
 	logging.debug("Lookup request: " + request)
 
 	fq = subprocess.Popen(["gnc-fq-helper"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
@@ -219,7 +219,7 @@ def quote_lookup_gnucash4(base_currency, commodity):
 		logging.error("Lookup error: %s", stderr)
 	if fq.returncode:
 		logging.error("Lookup return code: %d", fq.returncode)
-	response = scheme.parse(response)
+	response = scheme_parse(response)
 
 	if not response or not response[0] or response[0][0] != lookup[1]:
 		return None
@@ -240,6 +240,99 @@ def quote_lookup_gnucash4(base_currency, commodity):
 	if "ts" in data and "type" in data and "price" in data and "currency" in data:
 		return data
 	return None
+
+
+def scheme_parse(data):
+	def _append_text(data):
+		if data["text"] is not None:
+			if data["symbol"]:
+				if data["text"] == "#t":
+					value = True
+				elif data["text"] == "#f":
+					value = False
+				elif data["text"].startswith("#e"):
+					value = float(data["text"][2:])
+				else:
+					try:
+						value = float(data["text"])
+					except ValueError:
+						value = data["text"]
+			else:
+				try:
+					value = datetime.strptime(data["text"], "%Y-%m-%d %H:%M:%S")
+				except ValueError:
+					value = data["text"]
+
+			data["text"] = value
+			data["values"].append(data["text"])
+			data["text"] = None
+		data["symbol"] = True
+
+	def _pair_values(data):
+		if len(data) == 3 and data[1] == ".":
+			return (data[0], data[2])
+		return data
+
+	stack = [{"text": None, "symbol": True, "values": []}]
+	in_str = False
+
+	for c in data:
+		if c == '"':
+			if not in_str:
+				stack[-1]["text"] = ""
+				stack[-1]["symbol"] = False
+			in_str = not in_str
+		elif in_str:
+			stack[-1]["text"] += c
+		elif c == "(":
+			stack.append({"text": None, "symbol": True, "values": []})
+		elif c == ")":
+			assert len(stack) > 1
+
+			_append_text(stack[-1])
+
+			if len(stack) == 2 and not stack[0]["values"]:
+				return _pair_values(stack[1]["values"])
+			else:
+				stack[-2]["values"].append(_pair_values(stack[-1]["values"]))
+
+			stack.pop()
+		elif c == ' ' or c == '\r' or c == '\n':
+			_append_text(stack[-1])
+		else:
+			if stack[-1]["text"] is None:
+				stack[-1]["text"] = c
+			else:
+				stack[-1]["text"] += c
+
+	if stack[0]["values"]:
+		_append_text(stack[-1])
+
+		return _pair_values(stack[0]["values"])
+	else:
+		return None
+
+
+def scheme_format(data):
+	assert(data is not None)
+	if data is True:
+		return "#t"
+	elif data is False:
+		return "#f"
+	elif type(data) == list:
+		return "(" + " ".join([format(x) for x in data]) + ")"
+	elif type(data) == tuple:
+		return "(" + " . ".join([format(x) for x in data]) + ")"
+	elif type(data) == int:
+		return str(data)
+	elif type(data) == float:
+		return "#e" + str(data)
+	elif type(data) == str:
+		return '"' + data + '"'
+	elif type(data) == bytes:
+		return data.decode("utf-8")
+	else:
+		assert False, type(data)
 
 
 def quote_lookup_gnucash5(base_currency, commodity):
