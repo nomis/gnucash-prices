@@ -356,6 +356,10 @@ def quote_lookup_gnucash5(base_currency, commodity):
 		logging.error("Lookup error: %s", stderr)
 	if fq.returncode:
 		logging.error("Lookup return code: %d", fq.returncode)
+
+	if not response:
+		return None
+
 	response = json.loads(response)
 
 	if commodity.get_mnemonic() not in response:
