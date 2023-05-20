@@ -32,6 +32,8 @@ import sys
 import time
 import traceback
 import tzlocal
+import urllib.parse
+import urllib.request
 
 
 locale.setlocale(locale.LC_ALL, "")
@@ -114,7 +116,7 @@ def check_prices(offset, commodities, prices, late):
 	return ret
 
 
-def update_prices(session, base_currency, offset, all_commodities, currencies, prices):
+def update_prices(session, base_currency, offset, all_commodities, currencies, prices, alphavantage_currency):
 	logging.debug("Updating prices")
 
 	ret = True
@@ -149,7 +151,7 @@ def update_prices(session, base_currency, offset, all_commodities, currencies, p
 	for (key, commodity) in update_commodities.items():
 		logging.info("Updating %s", _cty_desc(commodity))
 		try:
-			result = quote_lookup(base_currency, commodity)
+			result = quote_lookup(base_currency, commodity, alphavantage_currency)
 		except Exception as e:
 			logging.critical("Unable to get data for %s", _cty_desc(commodity))
 			for line in traceback.format_exc().strip().split("\n"):
@@ -190,9 +192,11 @@ def update_prices(session, base_currency, offset, all_commodities, currencies, p
 	return ret
 
 
-def quote_lookup(base_currency, commodity):
+def quote_lookup(base_currency, commodity, alphavantage_currency):
 	time.sleep(1)
 
+	if commodity.is_currency() and alphavantage_currency:
+		return quote_lookup_alphavantage_currency(base_currency, commodity)
 	if shutil.which("finance-quote-wrapper"):
 		return quote_lookup_gnucash5(base_currency, commodity)
 	elif shutil.which("gnc-fq-helper"):
@@ -393,6 +397,45 @@ def quote_lookup_gnucash5(base_currency, commodity):
 	return None
 
 
+def quote_lookup_alphavantage_currency(base_currency, commodity):
+	request = {
+		"function": "FX_DAILY",
+		"from_symbol": commodity.get_mnemonic(),
+		"to_symbol": base_currency.get_mnemonic(),
+	}
+	logging.debug(f"Alpha Vantage lookup request: {request!r}")
+	request["apikey"] = os.environ["ALPHAVANTAGE_API_KEY"]
+	url = "https://www.alphavantage.co/query?" + urllib.parse.urlencode(request)
+	request = urllib.request.Request(
+		url,
+		data=None,
+		headers={
+			"User-Agent": "github.com/nomis/gnucash-prices/0",
+		}
+	)
+
+	time.sleep(20)
+
+	with urllib.request.urlopen(request) as conn:
+		content = conn.read().decode("UTF-8")
+		response = json.loads(content) if content else {}
+
+		logging.debug("Alpha Vantage lookup response: status=%d len=%d err=%s refreshed=%s", conn.status, len(content),
+			response.get("Error Message"), response.get("Meta Data", {}).get("5. Last Refreshed"))
+		if conn.status != 200 or response.get("Error Message"):
+			return None
+
+	data = {}
+	response = response["Time Series FX (Daily)"]
+	day = sorted(response.keys(), reverse=True)[0]
+	data["ts"] = datetime.fromisoformat(day + "T12:00")
+	data["type"] = "last"
+	data["price"] = float(response[day]["4. close"])
+	data["currency"] = base_currency.get_mnemonic()
+
+	logging.debug(f"Alpha Vantage lookup result: {data!r}")
+	return data
+
 def remove_user_currency_prices(session, currencies):
 	pdb = session.book.get_price_db()
 
@@ -440,6 +483,7 @@ if __name__ == "__main__":
 	parser.add_argument("-u", "--update", dest="update", action="store_true", help="Update prices that need to be updated")
 	parser.add_argument("-o", "--offset", dest="offset", type=int, help="Date offset")
 	parser.add_argument("-l", "--late", dest="late", nargs=2, default=[], action="append", type=str, metavar=("COMMODITY", "DAYS"), help="Date offset per commodity")
+	parser.add_argument("--alphavantage-daily-currency", dest="alphavantage_currency", action="store_true", help="Use alphavantage daily values for currency lookups")
 	parser.add_argument("--remove-user-currency-prices", dest="remove_user_currency", action="store_true", help="Remove user:* currency prices")
 	parser.add_argument("--remove-user-commodity-prices", dest="remove_user_commodity", action="store_true", help="Remove user:* commodity prices")
 	args = parser.parse_args()
@@ -484,7 +528,7 @@ if __name__ == "__main__":
 			if args.remove_user_commodity:
 				remove_user_commodity_prices(session, currencies)
 			if args.update:
-				ok = update_prices(session, args.currency, args.offset, commodities, currencies, prices) and ok
+				ok = update_prices(session, args.currency, args.offset, commodities, currencies, prices, args.alphavantage_currency) and ok
 			if args.check:
 				ok = check_prices(args.offset, commodities, prices, {commodity: int(days) for commodity, days in args.late}) and ok
 			if session.book.session_not_saved():
@@ -502,4 +546,3 @@ if __name__ == "__main__":
 	logging.debug("Finish")
 
 	sys.exit(0 if ok else 1)
-
