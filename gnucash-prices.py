@@ -484,8 +484,8 @@ if __name__ == "__main__":
 	parser.add_argument("-o", "--offset", dest="offset", type=int, help="Date offset")
 	parser.add_argument("-l", "--late", dest="late", nargs=2, default=[], action="append", type=str, metavar=("COMMODITY", "DAYS"), help="Date offset per commodity")
 	parser.add_argument("--alphavantage-daily-currency", dest="alphavantage_currency", action="store_true", help="Use alphavantage daily values for currency lookups")
-	parser.add_argument("--remove-user-currency-prices", dest="remove_user_currency", action="store_true", help="Remove user:* currency prices")
-	parser.add_argument("--remove-user-commodity-prices", dest="remove_user_commodity", action="store_true", help="Remove user:* commodity prices")
+	parser.add_argument("--remove-user-currency-prices", dest="remove_user_currency", action="store_true", help="Remove user:* currency prices (except for user:price-editor)")
+	parser.add_argument("--remove-user-commodity-prices", dest="remove_user_commodity", action="store_true", help="Remove user:* commodity prices (except for user:price-editor)")
 	args = parser.parse_args()
 
 	root = logging.getLogger()
