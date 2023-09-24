@@ -17,6 +17,7 @@
 
 from datetime import datetime, timedelta
 from fractions import Fraction
+from gnucash.gnucash_core_c import gnc_price_create
 from gnucash._gnucash_core_c import gnc_quote_source_get_internal_name, gnc_numeric_to_double
 import argparse
 import gnucash
@@ -173,7 +174,7 @@ def update_prices(session, base_currency, offset, all_commodities, currencies, p
 				result = None
 
 		if result is not None:
-			price = gnucash.GncPrice(instance=gnucash.gnucash_core_c.gnc_price_create(session.book.instance))
+			price = gnucash.GncPrice(instance=gnc_price_create(session.book.instance))
 			price.set_commodity(commodity)
 			price.set_currency(currencies[result["currency"]])
 			price.set_source_string("Finance::Quote")
