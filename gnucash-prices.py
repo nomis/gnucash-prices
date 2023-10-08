@@ -17,8 +17,7 @@
 
 from datetime import datetime, timedelta
 from fractions import Fraction
-from gnucash.gnucash_core_c import gnc_price_create
-from gnucash._gnucash_core_c import gnc_quote_source_get_internal_name, gnc_numeric_to_double
+from gnucash.gnucash_core_c import gnc_price_create, gnc_quote_source_get_internal_name, gnc_numeric_to_double
 import argparse
 import gnucash
 import json
