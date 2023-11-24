@@ -426,12 +426,16 @@ def quote_lookup_alphavantage_currency(base_currency, commodity):
 			return None
 
 	data = {}
-	response = response["Time Series FX (Daily)"]
-	day = sorted(response.keys(), reverse=True)[0]
-	data["ts"] = datetime.fromisoformat(day + "T12:00")
-	data["type"] = "last"
-	data["price"] = float(response[day]["4. close"])
-	data["currency"] = base_currency.get_mnemonic()
+	try:
+		response = response["Time Series FX (Daily)"]
+		day = sorted(response.keys(), reverse=True)[0]
+		data["ts"] = datetime.fromisoformat(day + "T12:00")
+		data["type"] = "last"
+		data["price"] = float(response[day]["4. close"])
+		data["currency"] = base_currency.get_mnemonic()
+	except Exception:
+		logging.exception(f"Alpha Vantage lookup response: {response!r}")
+		raise
 
 	logging.debug(f"Alpha Vantage lookup result: {data!r}")
 	return data
