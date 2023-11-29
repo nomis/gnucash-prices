@@ -53,14 +53,13 @@ def _cty_desc(cty):
 	return "{0}/{1} \"{2}\"".format(cty.get_namespace(), cty.get_mnemonic(), cty.get_fullname())
 
 
-def read_prices(session):
-	logging.debug("Reading prices")
+def read_commodities(session):
+	logging.debug("Reading commodities")
 
 	commodities = {}
-	prices = {}
 	currencies = {}
 	ctb = session.book.get_table()
-	pdb = session.book.get_price_db()
+
 	for ns in ctb.get_namespaces_list():
 		for cty in ns.get_commodity_list():
 			if cty.is_currency():
@@ -69,6 +68,15 @@ def read_prices(session):
 				currencies[cty.get_mnemonic()] = cty
 			if cty.get_quote_flag():
 				commodities[(ns.get_name(), cty.get_mnemonic())] = cty
+
+	return (commodities, currencies)
+
+
+def read_prices(session, commodities, currencies):
+	logging.debug("Reading prices")
+
+	prices = {}
+	pdb = session.book.get_price_db()
 
 	for (key, cty) in commodities.items():
 		for currency in currencies.values():
@@ -89,7 +97,7 @@ def read_prices(session):
 						prices[key] = ts
 
 	logging.debug("Read prices")
-	return (commodities, currencies, prices)
+	return prices
 
 
 def check_prices(offset, commodities, prices, late):
@@ -526,11 +534,12 @@ if __name__ == "__main__":
 			continue
 
 		try:
-			(commodities, currencies, prices) = read_prices(session)
+			(commodities, currencies) = read_commodities(session)
 			if args.remove_user_currency:
 				remove_user_currency_prices(session, currencies)
 			if args.remove_user_commodity:
 				remove_user_commodity_prices(session, currencies)
+			prices = read_prices(session, commodities, currencies)
 			if args.update:
 				ok = update_prices(session, args.currency, args.offset, commodities, currencies, prices, args.alphavantage_currency) and ok
 			if args.check:
