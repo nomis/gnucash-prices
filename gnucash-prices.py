@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-# coding: utf-8
-# Copyright 2019-2023  Simon Arlott
+# Copyright 2019-2024  Simon Arlott
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -543,6 +542,8 @@ if __name__ == "__main__":
 			if args.update:
 				ok = update_prices(session, args.currency, args.offset, commodities, currencies, prices, args.alphavantage_currency) and ok
 			if args.check:
+				if args.update:
+					prices = read_prices(session, commodities, currencies)
 				ok = check_prices(args.offset, commodities, prices, {commodity: int(days) for commodity, days in args.late}) and ok
 			if session.book.session_not_saved():
 				logging.info("Saving changes")
