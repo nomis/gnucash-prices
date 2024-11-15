@@ -350,11 +350,12 @@ def quote_lookup_gnucash5(base_currency, commodity):
 	time.sleep(1)
 
 	lookup = { "defaultcurrency": base_currency.get_mnemonic() }
+	source = gnc_quote_source_get_internal_name(commodity.get_quote_source())
 
 	if commodity.is_currency():
 		lookup["currency"] = { commodity.get_mnemonic(): "" }
 	else:
-		lookup[gnc_quote_source_get_internal_name(commodity.get_quote_source())] = { commodity.get_mnemonic(): "" }
+		lookup[source] = { commodity.get_mnemonic(): "" }
 
 	request = json.dumps(lookup)
 	logging.debug("Lookup request: " + request)
@@ -372,6 +373,10 @@ def quote_lookup_gnucash5(base_currency, commodity):
 		return None
 
 	response = json.loads(response)
+
+	# GnuCash 5.9+
+	if source in response:
+		response = response[source]
 
 	if commodity.get_mnemonic() not in response:
 		return None
